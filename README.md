@@ -2,14 +2,14 @@
 
 A small REST API for managing **projects** and the **tasks** inside them, built with **ASP.NET Core (.NET 8)** and documented with **Swagger**.
 
-
 ![Swagger UI showing all endpoints](docs/swagger.png)
 
 ## Tech stack
 
 - .NET 8 / ASP.NET Core Web API (controllers)
 - Swagger / OpenAPI (Swashbuckle)
-- In-memory data store (a hard-coded `List`, no database needed)
+- SQLite database with Entity Framework Core 8 (default)
+- In-memory data store (a hard-coded `List`), available with one setting
 
 ## How to run
 
@@ -17,6 +17,8 @@ A small REST API for managing **projects** and the **tasks** inside them, built 
 
 - [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
 - Optional: Visual Studio 2022 (with the *ASP.NET and web development* workload)
+
+No database server is needed. SQLite is a single file that the app creates itself.
 
 ### Option 1: Visual Studio
 
@@ -36,6 +38,12 @@ Then open **http://localhost:5030**. It redirects to Swagger.
 > To use HTTPS instead, run `dotnet run --project TaskTracker.Api --launch-profile https` and open **https://localhost:7246**.
 > If the browser warns about the certificate, run `dotnet dev-certs https --trust` once.
 
+### Data storage
+
+- **SQLite (default):** on first run, the app creates `TaskTracker.Api/tasktracker.db`, builds the tables from the EF Core migrations, and adds the sample data. Data **survives restarts**.
+- **Reset the data:** stop the app and delete `TaskTracker.Api/tasktracker.db`. It is recreated with the sample data on the next run.
+- **In-memory mode:** set `"DataStore": "InMemory"` in `TaskTracker.Api/appsettings.json`, or run `dotnet run --project TaskTracker.Api -- --DataStore=InMemory`. Data then lives in a hard-coded `List` and resets on every restart.
+
 ### Try the requests
 
 - **Swagger:** expand any endpoint, then click **Try it out** and **Execute**.
@@ -51,6 +59,7 @@ Then open **http://localhost:5030**. It redirects to Swagger.
 | CRUD endpoints for projects (5) | ✅ Done | `Controllers/ProjectsController.cs` |
 | CRUD endpoints for tasks (5) | ✅ Done | `Controllers/TasksController.cs` |
 | README: how to run and what was completed | ✅ Done | README.md |
+| *Good to have:* database instead of the hard-coded list | ✅ Done (SQLite + EF Core; the hard-coded list is still available) | `Data/TaskTrackerDbContext.cs`, `Data/EfTaskTrackerRepository.cs`, `Migrations/` |
 
 ## Endpoints
 
@@ -81,7 +90,7 @@ Content-Type: application/json
 }
 ```
 
-Response: `201 Created`, with `Location: /api/tasks/6` and the new task in the body.
+Response (on a fresh start): `201 Created`, with `Location: /api/tasks/6` and the new task in the body.
 
 ## Rules and validation
 
@@ -106,15 +115,20 @@ Response: `201 Created`, with `Location: /api/tasks/6` and the new task in the b
 TaskTracker.Api/
 ├── Controllers/           ProjectsController, TasksController (HTTP endpoints)
 ├── DataTransferObjects/   Request and response shapes for the API
-├── Data/                  Repository interface, in-memory implementation, seed data
+├── Data/                  Repository interface, SQLite and in-memory implementations, DbContext, seed data
+├── Migrations/            EF Core migrations that create the SQLite tables and sample data
 ├── Models/                Project, TaskItem, TaskItemStatus
-├── Program.cs             Service registration and request pipeline
+├── Program.cs             Service registration, data store switch and request pipeline
 └── TaskTracker.Api.http   Ready-to-run sample requests
 ```
 
 ## Design decisions
 
-- **Repository behind an interface (`ITaskTrackerRepository`).** Controllers depend on the interface, not the in-memory list, so a database version could replace it by changing one line in `Program.cs`. The methods are `async` for the same reason.
+- **Repository behind an interface (`ITaskTrackerRepository`).** Controllers depend on the interface, not on how data is stored. The SQLite version was added as a second implementation without changing any controller. The methods are `async` because database calls really do wait.
+- **Two data stores, one setting.** `DataStore` in `appsettings.json` chooses SQLite (default) or the in-memory list. Both use the same `SeedData`, so they start with identical sample data.
+- **Different lifetimes on purpose.** The in-memory store is a **singleton**, because the object *is* the data. The SQLite repository is **scoped** (one per request), because the data lives in the file and a `DbContext` should not be shared between requests.
+- **Migrations applied on startup.** `Database.Migrate()` creates or updates the database automatically, so anyone who clones the repo can run it with no setup.
+- **Database details.** Deleting a project cascades to its tasks in the database itself, status is stored as text (`"Done"`) so the table is readable, and dates are read back as UTC.
 - **Singleton lifetime for the in-memory store.** One shared list lives for the whole app, so data created in one request is visible in the next. A `lock` protects every change to the list.
 - **Separate request and response classes (DTOs).** Clients can only send the fields they are allowed to change (no `id` or `createdAt`), and internal model changes don't leak into the API.
 - **Nested and flat routes.** Tasks are created and listed under their project (`/api/projects/{id}/tasks`), then accessed directly by their own ID (`/api/tasks/{id}`), as the assignment specifies.
@@ -123,15 +137,15 @@ TaskTracker.Api/
 
 ## Known limitations
 
-- Data is kept in memory, so it **resets when the app restarts**.
-- Data is per app instance: running two copies of the API would give two separate data sets.
-- Responses are built after the lock is released, so under very heavy simultaneous writes a request could fail in rare cases. A real database removes this problem.
+- SQLite is a single file, which suits one server. Several servers sharing data would need a database server such as SQL Server.
+- In in-memory mode, data **resets when the app restarts**, and each running copy of the API has its own separate data.
+- In in-memory mode, responses are built after the lock is released, so under very heavy simultaneous writes a request could fail in rare cases. SQLite mode does not have this problem.
 - No authentication or authorization (out of scope for this assignment).
 - Swagger is only enabled in the Development environment.
 
 ## Future improvements
 
-- Replace the in-memory list with a database (SQLite or SQL Server with Entity Framework Core) behind the same repository interface.
+- Switch to SQL Server: install the SQL Server EF Core provider, change `UseSqlite` to `UseSqlServer`, and create migrations for it. The repository and controllers stay the same.
 - A Blazor page that calls the API.
 - Automated tests (xUnit unit tests and integration tests).
 - Paging and filtering, e.g. `GET /api/projects/{id}/tasks?status=Done`.
