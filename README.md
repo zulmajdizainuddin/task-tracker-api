@@ -86,7 +86,7 @@ Response: `201 Created`, with `Location: /api/tasks/6` and the new task in the b
 ## Rules and validation
 
 - **The server sets** `id` and `createdAt` (UTC). Clients cannot set them.
-- **Project name:** required, 1–100 characters. **Task title:** required, 1–200 characters. **Description:** optional, up to 500 characters. Empty or whitespace-only values are rejected.
+- **Project name:** required, 1–100 characters. **Task title:** required, 1–200 characters. **Description:** optional, up to 500 characters. Empty or whitespace-only names and titles are rejected.
 - **Status:** must be `Todo`, `InProgress` or `Done`, sent as text (not case-sensitive). Numbers such as `2` are rejected. Defaults to `Todo` when creating a task.
 - **PUT replaces the whole item:** a field left out of the body is cleared.
 - **A task stays in its project:** PUT cannot move it to another project.
@@ -115,7 +115,7 @@ TaskTracker.Api/
 ## Design decisions
 
 - **Repository behind an interface (`ITaskTrackerRepository`).** Controllers depend on the interface, not the in-memory list, so a database version could replace it by changing one line in `Program.cs`. The methods are `async` for the same reason.
-- **Singleton lifetime for the in-memory store.** One shared list lives for the whole app, so data created in one request is visible in the next. A `lock` keeps it safe when requests arrive at the same time.
+- **Singleton lifetime for the in-memory store.** One shared list lives for the whole app, so data created in one request is visible in the next. A `lock` protects every change to the list.
 - **Separate request and response classes (DTOs).** Clients can only send the fields they are allowed to change (no `id` or `createdAt`), and internal model changes don't leak into the API.
 - **Nested and flat routes.** Tasks are created and listed under their project (`/api/projects/{id}/tasks`), then accessed directly by their own ID (`/api/tasks/{id}`), as the assignment specifies.
 - **Deleting a project deletes its tasks.** A project is treated as a folder of tasks. The alternative would be refusing the delete (409 Conflict) while it still has tasks.
@@ -125,6 +125,7 @@ TaskTracker.Api/
 
 - Data is kept in memory, so it **resets when the app restarts**.
 - Data is per app instance: running two copies of the API would give two separate data sets.
+- Responses are built after the lock is released, so under very heavy simultaneous writes a request could fail in rare cases. A real database removes this problem.
 - No authentication or authorization (out of scope for this assignment).
 - Swagger is only enabled in the Development environment.
 
