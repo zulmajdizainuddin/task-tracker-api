@@ -399,3 +399,8 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# SQLite database created when the app runs
+*.db
+*.db-shm
+*.db-wal

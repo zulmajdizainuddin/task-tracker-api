@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using TaskTracker.Api.Data;
 
@@ -22,7 +23,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "Task Tracker API",
         Version = "v1",
-        Description = "Manage projects and their tasks. Data is kept in memory and resets when the app restarts."
+        Description = "Manage projects and their tasks. Data is stored in a SQLite database by default, or in memory (see the README)."
     });
 
     // Show the /// comments from the controllers in Swagger.
@@ -30,9 +31,28 @@ builder.Services.AddSwaggerGen(options =>
     options.IncludeXmlComments(Path.Combine(AppContext.BaseDirectory, xmlFile), includeControllerXmlComments: true);
 });
 
-builder.Services.AddSingleton<ITaskTrackerRepository, InMemoryTaskTrackerRepository>();
+// Choose where data is stored: "Sqlite" (a database file) or "InMemory" (a List that resets on restart).
+var dataStore = builder.Configuration["DataStore"];
+if (dataStore == "Sqlite")
+{
+    var dbPath = Path.Combine(builder.Environment.ContentRootPath, "tasktracker.db");
+    builder.Services.AddDbContext<TaskTrackerDbContext>(options => options.UseSqlite($"Data Source={dbPath}"));
+    builder.Services.AddScoped<ITaskTrackerRepository, EfTaskTrackerRepository>();
+}
+else
+{
+    builder.Services.AddSingleton<ITaskTrackerRepository, InMemoryTaskTrackerRepository>();
+}
 
 var app = builder.Build();
+
+// Create the database file and tables on first run, and apply any new migrations.
+if (dataStore == "Sqlite")
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<TaskTrackerDbContext>();
+    db.Database.Migrate();
+}
 
 app.UseExceptionHandler();
 app.UseStatusCodePages();
