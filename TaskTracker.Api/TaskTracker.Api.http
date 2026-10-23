@@ -1,6 +1,121 @@
+# Sample requests for the Task Tracker API.
+# Start the app (F5), then click "Send request" above any request.
+# Run them top to bottom on a fresh start: the deletes at the end change the data.
+
 @TaskTracker.Api_HostAddress = http://localhost:5030
 
-GET {{TaskTracker.Api_HostAddress}}/weatherforecast/
+### ---------- Projects ----------
+
+### List all projects (200)
+GET {{TaskTracker.Api_HostAddress}}/api/projects
 Accept: application/json
 
-###
+### Get one project (200)
+GET {{TaskTracker.Api_HostAddress}}/api/projects/1
+Accept: application/json
+
+### Get a project that does not exist (404)
+GET {{TaskTracker.Api_HostAddress}}/api/projects/99
+Accept: application/json
+
+### Create a project (201)
+POST {{TaskTracker.Api_HostAddress}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "Marketing Campaign",
+  "description": "Q4 product launch campaign."
+}
+
+### Create a project with an empty name (400)
+POST {{TaskTracker.Api_HostAddress}}/api/projects
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### Update a project (200)
+PUT {{TaskTracker.Api_HostAddress}}/api/projects/1
+Content-Type: application/json
+
+{
+  "name": "Website Redesign 2026",
+  "description": "Refresh the company website with a modern look."
+}
+
+### ---------- Tasks ----------
+
+### List the tasks of project 1 (200)
+GET {{TaskTracker.Api_HostAddress}}/api/projects/1/tasks
+Accept: application/json
+
+### List the tasks of a project that does not exist (404)
+GET {{TaskTracker.Api_HostAddress}}/api/projects/99/tasks
+Accept: application/json
+
+### Create a task (201)
+POST {{TaskTracker.Api_HostAddress}}/api/projects/1/tasks
+Content-Type: application/json
+
+{
+  "title": "Write homepage copy",
+  "description": "Short, friendly text for the hero section.",
+  "status": "InProgress",
+  "dueDate": "2026-11-10"
+}
+
+### Create a task with only a title: status defaults to Todo (201)
+POST {{TaskTracker.Api_HostAddress}}/api/projects/1/tasks
+Content-Type: application/json
+
+{
+  "title": "Check mobile layout"
+}
+
+### Create a task with an invalid status (400)
+POST {{TaskTracker.Api_HostAddress}}/api/projects/1/tasks
+Content-Type: application/json
+
+{
+  "title": "Bad status",
+  "status": "Finished"
+}
+
+### Create a task in a project that does not exist (404)
+POST {{TaskTracker.Api_HostAddress}}/api/projects/99/tasks
+Content-Type: application/json
+
+{
+  "title": "Ghost task"
+}
+
+### Get one task (200)
+GET {{TaskTracker.Api_HostAddress}}/api/tasks/1
+Accept: application/json
+
+### Get a task that does not exist (404)
+GET {{TaskTracker.Api_HostAddress}}/api/tasks/99
+Accept: application/json
+
+### Update a task: mark it Done (200)
+PUT {{TaskTracker.Api_HostAddress}}/api/tasks/2
+Content-Type: application/json
+
+{
+  "title": "Design homepage mockup",
+  "status": "Done",
+  "dueDate": "2026-10-28"
+}
+
+### ---------- Deletes (run last) ----------
+
+### Delete a task (204)
+DELETE {{TaskTracker.Api_HostAddress}}/api/tasks/3
+
+### Delete a project and all of its tasks (204)
+DELETE {{TaskTracker.Api_HostAddress}}/api/projects/2
+
+### Its tasks are gone too (404)
+GET {{TaskTracker.Api_HostAddress}}/api/tasks/4
+Accept: application/json
